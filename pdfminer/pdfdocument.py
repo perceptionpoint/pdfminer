@@ -123,10 +123,32 @@ class PDFXRef(PDFBaseXRef):
                 (pos, genno, use) = f
                 if use != b'n':
                     continue
-                self.offsets[objid] = (None, long(pos), int(genno))
+                pos = long(pos)
+                self.offsets[objid] = (None, pos, int(genno))
+                if not self.is_valid_object_position(parser, pos, objid):
+                    # try to find the correct object position
+                    correct_pos = self.find_object_position(parser, objid)
+                    if correct_pos != -1 and correct_pos != pos:
+                        self.offsets[objid] = (None, correct_pos, int(genno))
         if self.debug: logging.info('xref objects: %r' % self.offsets)
         self.load_trailer(parser)
         return
+
+    def is_valid_object_position(self, parser, pos, objid):
+        prev_pos = parser.fp.tell()
+        parser.fp.seek(pos)
+        data = parser.fp.read(30)
+        parser.fp.seek(prev_pos)
+
+        return data.startswith("%d " % (objid, ))
+
+    def find_object_position(self, parser, objid):
+        prev_pos = parser.fp.tell()
+        parser.fp.seek(0)
+        whole_data = parser.fp.read()
+        offset = whole_data.find("%d 0 obj" % objid)
+        parser.fp.seek(prev_pos)
+        return offset
 
     KEYWORD_TRAILER = KWD('trailer')
 
